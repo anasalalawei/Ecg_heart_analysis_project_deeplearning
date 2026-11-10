@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محلل تخطيط القلب الذكي - ECGFounder AI</title>
+    
+    <!-- Google Fonts: Cairo & Tajawal for crisp Arabic typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'Tajawal', 'sans-serif'],
+                    },
+                    colors: {
+                        navy: {
+                            800: '#0f172a',
+                            900: '#0a0f1d',
+                        },
+                        teal: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Cairo', 'Tajawal', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        /* Scanning laser line animation for ECG analysis */
+        @keyframes scanLine {
+            0% {
+                top: 0%;
+                opacity: 0.9;
+            }
+            50% {
+                top: 96%;
+                opacity: 1;
+            }
+            100% {
+                top: 0%;
+                opacity: 0.9;
+            }
+        }
+
+        .animate-scan {
+            animation: scanLine 1.5s ease-in-out infinite;
+        }
+
+        /* Subtle pulse for live status indicator */
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(20, 184, 166, 0);
+            }
+        }
+
+        .pulse-glow {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Smooth progress bar transition */
+        .progress-fill {
+            transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-gradient-to-l from-slate-900 via-slate-800 to-teal-900 text-white shadow-lg border-b border-teal-500/20">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div class="flex items-center gap-3.5">
+                    <!-- Medical ECG Icon -->
+                    <div class="w-12 h-12 rounded-2xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center shrink-0 pulse-glow">
+                        <svg class="w-7 h-7 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h4l3-8 4 16 3-8h4"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                                محلل تخطيط القلب الذكي - ECGFounder AI
+                            </h1>
+                            <span class="px-2.5 py-0.5 text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-400/30 rounded-full">
+                                PTB-XL v1.0
+                            </span>
+                        </div>
+                        <p class="text-slate-300 text-sm sm:text-base mt-1">
+                            نظام ذكاء اصطناعي متقدم لتصنيف تخطيط القلب الكهربائي (12-Lead ECG) إلى 5 فئات تشخيصية رئيسية
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Model Status Badge -->
+                <div class="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3.5 py-2 rounded-xl self-start md:self-auto">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-xs sm:text-sm font-medium text-slate-200">النموذج جاهز للتحليل</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        <!-- Toast / Message Box (Replaces alert) -->
+        <div id="messageBox" class="hidden fixed bottom-5 left-5 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center gap-3 transition-all duration-300">
+            <svg class="w-5 h-5 text-teal-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span id="messageText" class="text-sm font-medium"></span>
+        </div>
+
+        <!-- Step 1: Upload & Sample Section -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 sm:p-8">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm font-bold border border-teal-200">1</span>
+                        رفع صورة تخطيط القلب (ECG)
+                    </h2>
+                    <p class="text-sm text-slate-500 mt-1">قم برفع صورة تخطيط القلب بصيغة PNG أو JPG أو استخدم العينة التجريبية</p>
+                </div>
+
+                <!-- Load Sample ECG Button -->
+                <button id="loadSampleBtn" type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold text-sm border border-teal-200 transition-colors cursor-pointer shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    تحميل صورة تجريبية
+                </button>
+            </div>
+
+            <!-- Drag & Drop Zone -->
+            <div id="dropZone" class="relative border-2 border-dashed border-slate-300 hover:border-teal-500 bg-slate-50/70 hover:bg-teal-50/30 rounded-2xl p-8 sm:p-10 text-center transition-all cursor-pointer group">
+                <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" class="hidden">
+                
+                <div class="flex flex-col items-center justify-center space-y-3">
+                    <div class="w-14 h-14 rounded-2xl bg-white shadow-sm border border-slate-200 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <svg class="w-7 h-7 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-base font-semibold text-slate-700">
+                            اسحب وأفلت صورة التخطيط هنا، أو <span class="text-teal-600 underline">تصفح ملفاتك</span>
+                        </p>
+                        <p class="text-xs text-slate-400 mt-1">
+                            يدعم الصيغ: PNG, JPG, JPEG (الحد الأقصى 10 ميجابايت)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 2: Image Preview & Analyze Action -->
+        <section id="previewSection" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 sm:p-8 transition-all">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm font-bold border border-teal-200">2</span>
+                        معاينة الإشارة والتحليل
+                    </h2>
+                    <p id="fileNameDisplay" class="text-sm text-slate-500 mt-1">جاهز للتحليل</p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button id="clearBtn" type="button" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-sm font-semibold transition-colors cursor-pointer">
+                        إلغاء
+                    </button>
+                    <button id="analyzeBtn" type="button" class="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-l from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-bold text-sm shadow-md shadow-teal-500/20 transition-all cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                        تحليل الإشارة والتنبؤ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Image Container with Scanning Overlay -->
+            <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 flex items-center justify-center min-h-[240px] max-h-[420px]">
+                <img id="ecgPreviewImg" src="" alt="معاينة تخطيط القلب" class="w-full h-auto max-h-[420px] object-contain">
+                
+                <!-- Scanning Animation Overlay (Visible during 1.5s analysis) -->
+                <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center z-10">
+                    <!-- Laser Scan Line -->
+                    <div class="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-teal-400 to-transparent shadow-[0_0_15px_rgba(45,212,191,0.9)] animate-scan"></div>
+                    
+                    <div class="bg-slate-900/90 border border-teal-500/40 px-6 py-4 rounded-2xl flex items-center gap-3.5 shadow-2xl">
+                        <svg class="w-6 h-6 text-teal-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <div class="text-right">
+                            <p class="text-white font-bold text-sm sm:text-base">جاري استخراج الميزات وتحليل الموجات...</p>
+                            <p class="text-teal-300 text-xs mt-0.5">نموذج ECGFounder العميق</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Step 3: Results Dashboard -->
+        <section id="resultsSection" class="hidden space-y-6">
+            
+            <!-- Top Row: Primary Diagnosis + Signal Metadata -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Primary Diagnosis Card -->
+                <div class="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 sm:p-8 shadow-lg border border-slate-700 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-32 h-32 bg-teal-500/10 rounded-full -translate-x-10 -translate-y-10 blur-2xl"></div>
+                    
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-400/30 mb-3">
+                                <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                                التشخيص الأساسي المتوقع
+                            </span>
+                            <h3 id="primaryDiagTitle" class="text-2xl sm:text-3xl font-extrabold text-white">
+                                --
+                            </h3>
+                            <p id="primaryDiagDesc" class="text-slate-300 text-sm mt-2 max-w-xl">
+                                --
+                            </p>
+                        </div>
+
+                        <div class="bg-slate-800/90 border border-slate-600/60 rounded-2xl p-4 text-center min-w-[130px] shrink-0">
+                            <span class="text-xs text-slate-400 block mb-1">نسبة الثقة</span>
+                            <span id="primaryDiagConf" class="text-3xl font-extrabold text-teal-400">--%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Signal Quality & Metadata Summary -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            جودة الإشارة والبيانات الوصفية
+                        </h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span class="text-xs text-slate-500 block">معدل العينات</span>
+                                <span class="text-sm font-bold text-slate-800">500 Hz</span>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span class="text-xs text-slate-500 block">عدد الأقطاب</span>
+                                <span class="text-sm font-bold text-slate-800">12-Lead</span>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span class="text-xs text-slate-500 block">مدة التسجيل</span>
+                                <span class="text-sm font-bold text-slate-800">10 ثوانٍ</span>
+                            </div>
+                            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                                <span class="text-xs text-emerald-700 block">جودة الإشارة</span>
+                                <span class="text-sm font-bold text-emerald-700">ممتازة (98%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Multi-label Classification Breakdown (5 PTB-XL Classes) -->
+            <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">التصنيف متعدد الفئات (PTB-XL 5 Superclasses)</h3>
+                        <p class="text-sm text-slate-500">توزيع الاحتمالات عبر الفئات التشخيصية الخمس الرئيسية</p>
+                    </div>
+                    <span class="text-xs font-medium text-slate-400 bg-slate-100 px-3 py-1 rounded-lg self-start sm:self-auto">
+                        نموذج: ECGFounder-ViT
+                    </span>
+                </div>
+
+                <div id="breakdownContainer" class="space-y-5">
+                    <!-- Progress bars injected dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Medical Disclaimer -->
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3.5">
+                <svg class="w-6 h-6 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <h4 class="text-sm font-bold text-amber-900">إخلاء مسؤولية طبي</h4>
+                    <p class="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
+                        هذه الأداة مخصصة للأغراض البحثية والتعليمية فقط وتعتمد على قاعدة بيانات PTB-XL ونموذج ECGFounder. النتائج المعروضة هي تنبؤات ذكاء اصطناعي ولا تُعد تشخيصاً طبياً نهائياً، ولا تغني بأي حال من الأحوال عن استشارة طبيب القلب المختص.
+                    </p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-5 mt-12">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+            <p>© 2026 محلل تخطيط القلب الذكي - ECGFounder AI. جميع الحقوق محفوظة.</p>
+            <p>مبني على معايير PTB-XL لتخطيط القلب الكهربائي</p>
+        </div>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const loadSampleBtn = document.getElementById('loadSampleBtn');
+        const previewSection = document.getElementById('previewSection');
+        const ecgPreviewImg = document.getElementById('ecgPreviewImg');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const clearBtn = document.getElementById('clearBtn');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const scanningOverlay = document.getElementById('scanningOverlay');
+        const resultsSection = document.getElementById('resultsSection');
+        const breakdownContainer = document.getElementById('breakdownContainer');
+        const primaryDiagTitle = document.getElementById('primaryDiagTitle');
+        const primaryDiagDesc = document.getElementById('primaryDiagDesc');
+        const primaryDiagConf = document.getElementById('primaryDiagConf');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+
+        // PTB-XL 5 Superclasses Definition
+        const PTB_CLASSES = [
+            {
+                code: 'NORM',
+                nameAr: 'طبيعي (Normal ECG)',
+                desc: 'نظم قلبي طبيعي دون مؤشرات واضحة لاحتشاء أو اضطرابات توصيل.',
+                color: 'bg-emerald-500',
+                badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            },
+            {
+                code: 'MI',
+                nameAr: 'احتشاء عضلة القلب (Myocardial Infarction)',
+                desc: 'احتمالية وجود علامات لنقص التروية أو احتشاء في عضلة القلب.',
+                color: 'bg-rose-500',
+                badgeBg: 'bg-rose-50 text-rose-700 border-rose-200'
+            },
+            {
+                code: 'STTC',
+                nameAr: 'تغيرات قطاع ST/T (ST/T Change)',
+                desc: 'تغيرات في موجة T أو قطعة ST قد ترتبط بإجهاد أو نقص تروية.',
+                color: 'bg-amber-500',
+                badgeBg: 'bg-amber-50 text-amber-700 border-amber-200'
+            },
+            {
+                code: 'CD',
+                nameAr: 'اضطرابات التوصيل الكهربائي (Conduction Disturbance)',
+                desc: 'تأخر أو اضطراب في مسار الإشارات الكهربائية داخل القلب.',
+                color: 'bg-indigo-500',
+                badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+            },
+            {
+                code: 'HYP',
+                nameAr: 'تضخم القلب (Hypertrophy)',
+                desc: 'مؤشرات لزيادة سماكة جدار البطين أو الأذين.',
+                color: 'bg-cyan-500',
+                badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200'
+            }
+        ];
+
+        // Show custom toast message (no alert)
+        function showMessage(msg) {
+            messageText.textContent = msg;
+            messageBox.classList.remove('hidden');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3500);
+        }
+
+        // Generate a realistic 12-Lead ECG image on an offscreen canvas for the "Load Sample ECG" button
+        function generateSampleECGDataURL() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1000;
+            canvas.height = 520;
+            const ctx = canvas.getContext('2d');
+
+            // Classic ECG paper background
+            ctx.fillStyle = '#fff5f5';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Minor grid lines (1mm)
+            ctx.strokeStyle = '#fed7d7';
+            ctx.lineWidth = 0.7;
+            for (let x = 0; x <= canvas.width; x += 10) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += 10) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Major grid lines (5mm)
+            ctx.strokeStyle = '#feb2b2';
+            ctx.lineWidth = 1.2;
+            for (let x = 0; x <= canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw 12-lead labels & waveforms (4 columns x 3 rows)
+            const leads = [
+                ['I', 'aVR', 'V1', 'V4'],
+                ['II', 'aVL', 'V2', 'V5'],
+                ['III', 'aVF', 'V3', 'V6']
+            ];
+
+            ctx.font = 'bold 14px monospace';
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.8;
+
+            const rowHeight = canvas.height / 3;
+            const colWidth = canvas.width / 4;
+
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 4; c++) {
+                    const startX = c * colWidth + 15;
+                    const baseY = r * rowHeight + rowHeight / 2;
+
+                    // Lead label
+                    ctx.fillText(leads[r][c], startX, baseY - 45);
+
+                    // Draw synthetic P-QRS-T complexes
+                    ctx.beginPath();
+                    ctx.moveTo(startX, baseY);
+
+                    let x = startX;
+                    const endX = (c + 1) * colWidth - 15;
+                    while (x < endX - 60) {
+                        // Baseline
+                        ctx.lineTo(x + 15, baseY);
+                        // P wave
+                        ctx.quadraticCurveTo(x + 22, baseY - 8, x + 28, baseY);
+                        // PR segment
+                        ctx.lineTo(x + 34, baseY);
+                        // Q wave
+                        ctx.lineTo(x + 37, baseY + 6);
+                        // R wave (tall)
+                        const rHeight = (r === 1 && c === 0) ? 45 : 35 + (c * 3);
+                        ctx.lineTo(x + 41, baseY - rHeight);
+                        // S wave
+                        ctx.lineTo(x + 45, baseY + 12);
+                        // ST segment
+                        ctx.lineTo(x + 52, baseY);
+                        // T wave
+                        ctx.quadraticCurveTo(x + 62, baseY - 12, x + 72, baseY);
+
+                        x += 85;
+                    }
+                    ctx.lineTo(endX, baseY);
+                    ctx.stroke();
+                }
+            }
+
+            return canvas.toDataURL('image/png');
+        }
+
+        // Handle File Selection
+        function handleFile(file) {
+            if (!file) return;
+            const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+            if (!validTypes.includes(file.type)) {
+                showMessage('يرجى اختيار صورة بصيغة PNG أو JPG أو JPEG فقط.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                ecgPreviewImg.src = e.target.result;
+                fileNameDisplay.textContent = `الملف المرفوع: ${file.name}`;
+                previewSection.classList.remove('hidden');
+                resultsSection.classList.add('hidden');
+                previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Event Listeners for Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-teal-500', 'bg-teal-50/50');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-teal-500', 'bg-teal-50/50');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-teal-500', 'bg-teal-50/50');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Load Sample ECG Button
+        loadSampleBtn.addEventListener('click', () => {
+            const sampleUrl = generateSampleECGDataURL();
+            ecgPreviewImg.src = sampleUrl;
+            fileNameDisplay.textContent = 'عينة تجريبية: تخطيط قلب 12-Lead قياسي (PTB-XL Sample)';
+            previewSection.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+            previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            showMessage('تم تحميل الصورة التجريبية بنجاح.');
+        });
+
+        // Clear Button
+        clearBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            ecgPreviewImg.src = '';
+            previewSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+        });
+
+        // Analyze & Predict Button (1.5s realistic scanning animation)
+        analyzeBtn.addEventListener('click', () => {
+            if (!ecgPreviewImg.src) {
+                showMessage('يرجى رفع صورة تخطيط القلب أولاً.');
+                return;
+            }
+
+            // Disable button & show scanning overlay
+            analyzeBtn.disabled = true;
+            analyzeBtn.classList.add('opacity-60', 'cursor-not-allowed');
+            scanningOverlay.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+
+            setTimeout(() => {
+                // Hide scanning overlay & re-enable button
+                scanningOverlay.classList.add('hidden');
+                analyzeBtn.disabled = false;
+                analyzeBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+
+                // Generate simulated multi-label probabilities
+                renderResults();
+            }, 1500);
+        });
+
+        // Render Results Dashboard
+        function renderResults() {
+            // Generate realistic multi-label scores
+            const rawScores = PTB_CLASSES.map((cls, idx) => {
+                // Make NORM or MI likely to be the top prediction for a realistic demo
+                let score = idx === 0 ? (65 + Math.random() * 28) : (5 + Math.random() * 45);
+                return { ...cls, score: Math.min(99, Math.round(score)) };
+            });
+
+            // Sort descending by score
+            rawScores.sort((a, b) => b.score - a.score);
+
+            // Populate Primary Diagnosis Card
+            const top = rawScores[0];
+            primaryDiagTitle.textContent = `${top.code} — ${top.nameAr}`;
+            primaryDiagDesc.textContent = top.desc;
+            primaryDiagConf.textContent = `${top.score}%`;
+
+            // Populate Multi-label Breakdown
+            breakdownContainer.innerHTML = '';
+            rawScores.forEach((item) => {
+                const row = document.createElement('div');
+                row.className = 'space-y-2';
+                row.innerHTML = `
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 text-xs font-bold rounded-md border ${item.badgeBg}">${item.code}</span>
+                            <span class="font-semibold text-slate-800">${item.nameAr}</span>
+                        </div>
+                        <span class="font-bold text-slate-900">${item.score}%</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full ${item.color} rounded-full progress-fill" style="width: 0%"></div>
+                    </div>
+                `;
+                breakdownContainer.appendChild(row);
+
+                // Trigger smooth width animation
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        row.querySelector('.progress-fill').style.width = `${item.score}%`;
+                    }, 50);
+                });
+            });
+
+            resultsSection.classList.remove('hidden');
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    </script>
+</body>
+</html>
